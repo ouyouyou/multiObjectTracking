@@ -1,11 +1,13 @@
-function multiObjectTracking()
+function OutputTracks = multiObjectTracking()  % 函数加了一个我自定义的输出结果
 
 % create system objects used for reading video, detecting moving objects,
 % and displaying the results
 obj = setupSystemObjects(); %初始化函数
 tracks = initializeTracks(); % create an empty array of tracks  %初始化轨迹对象
+OutputTracks = initializeOutputTracks(); % 初始化轨迹输出结果结构体
 
 nextId = 1; % ID of the next track
+frame_count = 1; % 记录是第几帧了
 
 % detect moving objects, and track them across video frames
 while ~isDone(obj.reader)
@@ -21,6 +23,7 @@ while ~isDone(obj.reader)
     createNewTracks();%创建新轨迹
     
     displayTrackingResults();%结果展示
+    frame_count = frame_count + 1;
 end
 
 
@@ -104,6 +107,15 @@ end
             'age', {}, ...%总数量
             'totalVisibleCount', {}, ...%可视数量
             'consecutiveInvisibleCount', {});%不可视数量
+    end
+
+    function output_tracks = initializeOutputTracks()
+        % create an empty array of tracks
+        output_tracks = struct(...
+            'id', {}, ...  %轨迹ID
+            'x',{},... % 坐标序列
+            'y',{},...;  % y坐标序列
+            'strat_frame',{}) % 从第几帧出现该物体
     end
 
 %% Read a Video Frame
@@ -235,6 +247,11 @@ end
             tracks(trackIdx).totalVisibleCount = ...
                 tracks(trackIdx).totalVisibleCount + 1;
             tracks(trackIdx).consecutiveInvisibleCount = 0;
+
+            % 下面是我加的将中间结果输出到最终的 OutputTrack 中
+            now_id = tracks(trackIdx).id;
+            OutputTracks(now_id).x(end+1) = centroid(1);
+            OutputTracks(now_id).y(end+1) = centroid(2);
         end
     end
 
@@ -247,6 +264,12 @@ end
             tracks(ind).age = tracks(ind).age + 1;
             tracks(ind).consecutiveInvisibleCount = ...
                 tracks(ind).consecutiveInvisibleCount + 1;
+
+            % 下面是我加的将中间结果输出到最终的 OutputTrack 中
+            now_id = tracks(ind).id;
+            % 轨迹在这一帧中没有被匹配到，所以假设位置和上一帧一样
+            OutputTracks(now_id).x(end+1) = OutputTracks(now_id).x(end);
+            OutputTracks(now_id).y(end+1) = OutputTracks(now_id).y(end);
         end
     end
 
@@ -260,8 +283,8 @@ end
             return;
         end
         
-        invisibleForTooLong = 10;
-        ageThreshold = 8;
+        invisibleForTooLong = 10; % 这是一个有用的参数，用来检测物调节不可见多少帧后背删除
+        ageThreshold = 8; %也是有用的可调节参数
         
         % compute the fraction of the track's age for which it was visible
         ages = [tracks(:).age];
@@ -305,6 +328,12 @@ end
             
             % add it to the array of tracks
             tracks(end + 1) = newTrack;
+            
+            % 在输出结构体数组中新增一条记录
+            OutputTracks(nextId).id = nextId;
+            OutputTracks(nextId).x = centroid(1);
+            OutputTracks(nextId).y = centroid(2);
+            OutputTracks(nextId).strat_frame = frame_count;
             
             % increment the next id
             nextId = nextId + 1;
